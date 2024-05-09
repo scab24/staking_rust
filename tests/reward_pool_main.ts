@@ -56,7 +56,7 @@ describe("reward_pool_main", () => {
   
     // Ejecutar la transacción de inicialización para crear la cuenta de Reward Pool
     await program.methods
-      .initialize()
+      .initialize(signerName.publicKey)
       .accounts({
         rewardPool: rewardPoolKp.publicKey, // Nueva cuenta de Reward Pool
         user: signerName.publicKey, // Firmante principal
@@ -205,6 +205,7 @@ describe("reward_pool_main", () => {
     await airdrop(provider.connection, a_to_c_mint_authority.publicKey);
     await airdrop(provider.connection, a_to_b_mint_authority.publicKey);
     await airdrop(provider.connection, signerName.publicKey);
+    await airdrop(provider.connection, rewardPoolKp.publicKey);
   
     // Crear un mint para la campaña usando el Keypair del pagador
     a_to_c_mint = await token.createMint(provider.connection, a_to_c_mint_authority, a_to_c_mint_authority.publicKey, null, 9);
@@ -222,7 +223,7 @@ describe("reward_pool_main", () => {
     
     // Generar el PDA para `reward_info`
     const [rewardInfoPda] = await anchor.web3.PublicKey.findProgramAddress(
-      [Buffer.from("reward_info"), campaignId.toArrayLike(Buffer, "le", 8)],
+      [Buffer.from("reward_info"), new anchor.BN(campaignId).toArrayLike(Buffer, "le", 8)],
       program.programId
     );
     // Mint tokens al pagador para simular el saldo del usuario
@@ -243,6 +244,8 @@ describe("reward_pool_main", () => {
       })
       .signers([signerName]) 
       .rpc();
+      console.log(`Generated Reward Info PDA: ${rewardInfoPda.toBase58()}`);
+
   
     // // Verificar que el depósito se realizó correctamente
     // const rewardInfoAccount = await program.account.rewardInfo.fetch(rewardInfoPda);
