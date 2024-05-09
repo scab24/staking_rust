@@ -29,6 +29,7 @@ describe("reward_pool_main", () => {
 
   const payer = anchor.web3.Keypair.generate();
   const payer2 = anchor.web3.Keypair.generate();
+  const signerName = anchor.web3.Keypair.generate();
 
 
   let a_to_c_mint;
@@ -51,16 +52,17 @@ describe("reward_pool_main", () => {
   it("Initializes the reward pool", async () => {
     // Asegurarse de que el `wallet` tiene fondos suficientes
     await airdrop(provider.connection, wallet.publicKey);
+    await airdrop(provider.connection, signerName.publicKey);
   
     // Ejecutar la transacción de inicialización para crear la cuenta de Reward Pool
     await program.methods
       .initialize()
       .accounts({
         rewardPool: rewardPoolKp.publicKey, // Nueva cuenta de Reward Pool
-        user: wallet.publicKey, // Firmante principal
+        user: signerName.publicKey, // Firmante principal
         systemProgram: SystemProgram.programId,
       })
-      .signers([rewardPoolKp]) // Firmar para inicializar la cuenta
+      .signers([rewardPoolKp, signerName]) // Firmar para inicializar la cuenta
       .rpc();
   
     // Recuperar la cuenta recién creada para verificar su estado
@@ -69,19 +71,19 @@ describe("reward_pool_main", () => {
     // Verificar que la cuenta tenga los valores correctos
     assert.strictEqual(
       rewardPoolAccount.owner.toBase58(),
-      wallet.publicKey.toBase58(),
+      signerName.publicKey.toBase58(),
       "Propietario incorrecto"
     );
     assert.strictEqual(
       rewardPoolAccount.taxRecipient.toBase58(),
-      wallet.publicKey.toBase58(),
+      signerName.publicKey.toBase58(),
       "Beneficiario de impuestos incorrecto"
     );
   
     // Verificar que el campo `authorized_signer` esté inicializado correctamente
     assert.strictEqual(
       rewardPoolAccount.authorizedSigner.toBase58(),
-      wallet.publicKey.toBase58(), // El authorized_signer inicial debe coincidir con el owner
+      signerName.publicKey.toBase58(), // El authorized_signer inicial debe coincidir con el owner
       "El authorized_signer debería ser igual al owner"
     );
   
@@ -102,8 +104,9 @@ describe("reward_pool_main", () => {
       .pause()
       .accounts({
         rewardPool: rewardPoolKp.publicKey,
-        owner: wallet.publicKey, // Dueño original como firmante
+        owner: signerName.publicKey, // Dueño original como firmante
       })
+      .signers([signerName]) // Firmar para inicializar la cuenta
       .rpc(); // El wallet firmará automáticamente
 
     // Verificar que el Reward Pool esté pausado
@@ -120,8 +123,9 @@ describe("reward_pool_main", () => {
       .unpause()
       .accounts({
         rewardPool: rewardPoolKp.publicKey,
-        owner: wallet.publicKey, // Dueño original como firmante
+        owner: signerName.publicKey, // Dueño original como firmante
       })
+      .signers([signerName]) // Firmar para inicializar la cuenta
       .rpc(); // El wallet firmará automáticamente
 
     // Verificar que el Reward Pool esté activo nuevamente
@@ -141,8 +145,9 @@ describe("reward_pool_main", () => {
       .setAuthorizedSigner(newAuthorizedSigner.publicKey)
       .accounts({
         rewardPool: rewardPoolKp.publicKey,
-        owner: wallet.publicKey, // El dueño original que debe autorizar el cambio
+        owner: signerName.publicKey, // El dueño original que debe autorizar el cambio
       })
+      .signers([signerName]) // Firmar para inicializar la cuenta
       .rpc(); // El wallet firmará automáticamente
   
     // Verificar que el nuevo `authorized_signer` esté correctamente configurado
@@ -165,7 +170,7 @@ describe("reward_pool_main", () => {
     const rewardPoolAccount = await program.account.rewardPoolState.fetch(rewardPoolKp.publicKey);
     assert.strictEqual(
       rewardPoolAccount.owner.toBase58(),
-      wallet.publicKey.toBase58(),
+      signerName.publicKey.toBase58(),
       "El propietario debería ser el owner correcto"
     );
   
@@ -174,8 +179,9 @@ describe("reward_pool_main", () => {
       .setTaxRecipient(newTaxRecipient.publicKey)
       .accounts({
         rewardPool: rewardPoolKp.publicKey,
-        owner: wallet.publicKey, // El propietario debe firmar el cambio
+        owner: signerName.publicKey, // El propietario debe firmar el cambio
       })
+      .signers([signerName]) // Firmar para inicializar la cuenta
       .rpc(); // Firmar automáticamente con `wallet`
   
     // Verificar que el nuevo `tax_recipient` esté correctamente configurado
@@ -198,28 +204,29 @@ describe("reward_pool_main", () => {
     await airdrop(provider.connection, payer.publicKey);
     await airdrop(provider.connection, a_to_c_mint_authority.publicKey);
     await airdrop(provider.connection, a_to_b_mint_authority.publicKey);
+    await airdrop(provider.connection, signerName.publicKey);
   
     // Crear un mint para la campaña usando el Keypair del pagador
     a_to_c_mint = await token.createMint(provider.connection, a_to_c_mint_authority, a_to_c_mint_authority.publicKey, null, 9);
     a_to_b_mint = await token.createMint(provider.connection, a_to_b_mint_authority, a_to_b_mint_authority.publicKey, null, 9);
   
     // Crear cuentas de token para `tax_recipient_account` y `campaign_token_account`
-    taxRecipientAccount = await token.createAccount(provider.connection, payer, a_to_c_mint, payer.publicKey);
-    campaignTokenAccount = await token.createAccount(provider.connection, payer, a_to_b_mint, payer.publicKey);
+    taxRecipientAccount = await token.createAccount(provider.connection, signerName, a_to_c_mint, signerName.publicKey);
+    campaignTokenAccount = await token.createAccount(provider.connection, signerName, a_to_b_mint, signerName.publicKey);
   
-    // Generar el PDA para `reward_info`
-    const [rewardInfoPda] = await anchor.web3.PublicKey.findProgramAddress(
-      [Buffer.from("reward_info"), new BN(1).toArrayLike(Buffer, "le", 8)],
-      program.programId
-    );
-  
+    
     // Definir los valores de la campaña y las tarifas
     const campaignAmount = new BN(500);
     const feeAmount = new BN(50);
     const campaignId = new BN(1);
-  
+    
+    // Generar el PDA para `reward_info`
+    const [rewardInfoPda] = await anchor.web3.PublicKey.findProgramAddress(
+      [Buffer.from("reward_info"), campaignId.toArrayLike(Buffer, "le", 8)],
+      program.programId
+    );
     // Mint tokens al pagador para simular el saldo del usuario
-    await token.mintTo(provider.connection, payer, a_to_c_mint, taxRecipientAccount, a_to_c_mint_authority, campaignAmount.toNumber());
+    await token.mintTo(provider.connection, signerName, a_to_c_mint, taxRecipientAccount, a_to_c_mint_authority, campaignAmount.toNumber() + feeAmount.toNumber());
   
 
     // Ejecutar el método `depositReward` con las cuentas inicializadas
@@ -227,14 +234,14 @@ describe("reward_pool_main", () => {
       .depositReward(campaignTokenAccount, campaignAmount, feeAmount, campaignId)
       .accounts({
         rewardPool: rewardPoolKp.publicKey,
-        user: wallet.publicKey,
+        user: signerName.publicKey,
         taxRecipientAccount: taxRecipientAccount,
         campaignTokenAccount: campaignTokenAccount,
         tokenProgram: TOKEN_PROGRAM_ID,
         rewardInfo: rewardInfoPda,
         systemProgram: SystemProgram.programId,
       })
-      .signers([payer]) // Firmar con los Keypair necesarios
+      .signers([signerName]) 
       .rpc();
   
     // // Verificar que el depósito se realizó correctamente
