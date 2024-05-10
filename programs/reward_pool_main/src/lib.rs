@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 use solana_program::pubkey::Pubkey;
 
-declare_id!("44cUoDQ2V5GH5zgaYD7A3EMgRCnWXRGvfCgGkEUxxYWS");
+declare_id!("5cKMnczybrfdiZdtajESXuQrmJSd4xFquF6KFinNMBi3");
 
 #[program]
 pub mod reward_pool_main {
@@ -27,18 +27,18 @@ pub mod reward_pool_main {
         let reward_info = &mut ctx.accounts.reward_info;
         let reward_pool = &mut ctx.accounts.reward_pool;
 
-        if reward_pool.paused {
-            return Err(ErrorCode::ProgramPaused.into());
-        }
+        // if reward_pool.paused {
+        //     return Err(ErrorCode::ProgramPaused.into());
+        // }
         
-        // Ensure the campaign is new by checking if token_address is default (indicating uninitialized)
-        if reward_info.token_address != Pubkey::default() {
-            return Err(ErrorCode::CampaignAlreadyExists.into());
-        }
+        // // Ensure the campaign is new by checking if token_address is default (indicating uninitialized)
+        // if reward_info.token_address != Pubkey::default() {
+        //     return Err(ErrorCode::CampaignAlreadyExists.into());
+        // }
 
         // Perform the token transfer for the fee
         let transfer_fee_ix = Transfer {
-            from: ctx.accounts.user.to_account_info(),
+            from: ctx.accounts.user_token_account.to_account_info(),
             to: ctx.accounts.tax_recipient_account.to_account_info(),
             authority: ctx.accounts.user.to_account_info(),
         };
@@ -52,7 +52,7 @@ pub mod reward_pool_main {
 
         // Perform the token transfer for the campaign amount to the campaign's token account
         let transfer_campaign_ix = Transfer {
-            from: ctx.accounts.user.to_account_info(),
+            from: ctx.accounts.user_token_account.to_account_info(),
             to: ctx.accounts.campaign_token_account.to_account_info(),
             authority: ctx.accounts.user.to_account_info(),
         };
@@ -256,12 +256,15 @@ pub struct DepositReward<'info> {
     #[account(mut)]
     pub tax_recipient_account: Account<'info, TokenAccount>, // Tax recipient's token account
     #[account(mut)]
+    pub user_token_account: Account<'info, TokenAccount>, // Tax recipient's token account
+    #[account(mut)]
     pub campaign_token_account: Account<'info, TokenAccount>, // Token account to store the campaign's funds
     pub token_program: Program<'info, Token>,  // Token program
     #[account(
         init_if_needed,
         payer = user,
-        seeds = [b"reward_info", campaign_id.to_le_bytes().as_ref()],
+        // seeds = [b"reward_info", campaign_id.to_le_bytes().as_ref()],
+        seeds=[b"reward_info".as_ref(), user.key().as_ref()],
         bump,
         space = 8 + 32 + 32 + 32 + 1 // @audit => space change. Assuming space for u64 (amount), 2 * Pubkey (token_address, owner_address), plus discriminator
     )]
