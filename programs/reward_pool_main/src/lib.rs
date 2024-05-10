@@ -7,11 +7,11 @@ declare_id!("44cUoDQ2V5GH5zgaYD7A3EMgRCnWXRGvfCgGkEUxxYWS");
 #[program]
 pub mod reward_pool_main {
     use super::*;
-    pub fn initialize(ctx: Context<Initialize>, initializer: Pubkey) -> Result<()> {
+    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
         let reward_pool = &mut ctx.accounts.reward_pool;
-        reward_pool.tax_recipient = initializer;
-        reward_pool.owner = initializer;
-        reward_pool.authorized_signer = initializer;
+        reward_pool.tax_recipient = ctx.accounts.user.key();
+        reward_pool.owner = ctx.accounts.user.key();
+        reward_pool.authorized_signer = ctx.accounts.user.key(); // Asegura que el authorized_signer coincida con el owner
         Ok(())
     }
 
@@ -212,7 +212,6 @@ pub mod reward_pool_main {
 }
 
 #[derive(Accounts)]
-#[instruction(initializer: Pubkey)]
 pub struct Initialize<'info> {    
     #[account(
         init, 

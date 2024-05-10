@@ -56,7 +56,7 @@ describe("reward_pool_main", () => {
   
     // Ejecutar la transacción de inicialización para crear la cuenta de Reward Pool
     await program.methods
-      .initialize(signerName.publicKey)
+      .initialize()
       .accounts({
         rewardPool: rewardPoolKp.publicKey, // Nueva cuenta de Reward Pool
         user: signerName.publicKey, // Firmante principal
