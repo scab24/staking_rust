@@ -1,95 +1,61 @@
-// // tests/reward_pool_initialize_test.rs
-
 // use anchor_lang::prelude::*;
+// use anchor_spl::token::{self, Token, TokenAccount, Transfer};
+// use solana_program::{pubkey::Pubkey, instruction::Instruction};
 // use solana_program_test::*;
-// use solana_sdk::{
-//     signature::{Keypair, Signer},
-//     transaction::Transaction,
-//     instruction::{Instruction, AccountMeta},
-//     system_program,
-// };
-// use std::str::FromStr;
-// use reward_pool_main::instruction::Initialize; // Importa directamente `Initialize`
+// use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
+// use reward_pool::{RewardPoolState, RewardInfo, id, entry, Initialize};
+// use tokio::{task, time};
 
-// fn get_initialize_instruction(
-//     program_id: Pubkey,
-//     reward_pool: Pubkey,
-//     initializer: Pubkey,
-// ) -> Instruction {
-//     // Usa la estructura pública `Initialize`
-//     let data = Initialize { initializer };
-//     let mut serialized_data = vec![];
-//     data.serialize(&mut serialized_data).unwrap();
+// mod tests {
+//     use super::*;
 
-//     // Construye la instrucción con las cuentas necesarias y los datos serializados
-//     Instruction {
-//         program_id,
-//         accounts: vec![
-//             AccountMeta::new(reward_pool, false), // `reward_pool` no necesita firmar
-//             AccountMeta::new(initializer, true),  // `initializer` es el firmante
-//             AccountMeta::new_readonly(system_program::ID, false),
-//         ],
-//         data: serialized_data, // Inserta los datos serializados correctamente
-//     }
-// }
+//     #[tokio::test]
+//     async fn test_initialize() {
+//         let program_id = id();
+//         let mut program_test = ProgramTest::new("reward_pool", program_id, |pubkey, accounts, _| {
+//             entry(pubkey, accounts, &[])
+//         });
 
-// #[tokio::test]
-// async fn test_initialize_reward_pool() {
-//     // Configura un entorno de prueba
-//     let program_id = Pubkey::from_str("44cUoDQ2V5GH5zgaYD7A3EMgRCnWXRGvfCgGkEUxxYWS").unwrap();
-//     let mut program_test = ProgramTest::new("reward_pool_main", program_id, None);
+//         let user = Keypair::new();
+//         let reward_pool_pubkey = Pubkey::find_program_address(&[b"reward_pool"], &program_id).0;
 
-//     // Crea la cuenta `user` como el propietario y pagador
-//     let user = Keypair::new();
-//     let reward_pool_keypair = Keypair::new();
+//         let (mut banks_client, payer, recent_blockhash) = program_test.start().await;
 
-//     // Añade `user` como una cuenta con suficiente saldo
-//     program_test.add_account(
-//         user.pubkey(),
-//         solana_sdk::account::Account {
-//             lamports: 10_000_000,
-//             data: vec![],
-//             owner: system_program::ID,
-//             executable: false,
-//             rent_epoch: 0,
-//         },
-//     );
+//         // Construir la lista de cuentas
+//         let accounts = vec![
+//             AccountMeta::new(reward_pool_pubkey, false),
+//             AccountMeta::new(user.pubkey(), true),
+//             AccountMeta::new_readonly(solana_program::system_program::ID, false),
+//         ];
 
-//     println!("User Pubkey: {}", user.pubkey());
-//     println!("Reward Pool Pubkey: {}", reward_pool_keypair.pubkey());
+//         // Serializar la instrucción para `initialize`
+//         let initialize_instruction = Initialize {};
 
-//     // Inicia el entorno de prueba
-//     let (mut banks_client, payer, recent_blockhash) = program_test.start().await;
+//         let instruction_data = anchor_lang::InstructionData::data(&initialize_instruction);
 
-//     // Crea la transacción de inicialización
-//     let mut transaction = Transaction::new_with_payer(
-//         &[get_initialize_instruction(
+//         // Crear la instrucción completa
+//         let instruction = Instruction {
 //             program_id,
-//             reward_pool_keypair.pubkey(),
-//             user.pubkey(),
-//         )],
-//         Some(&payer.pubkey()),
-//     );
+//             accounts,
+//             data: instruction_data,
+//         };
 
-//     // Firma la transacción con las claves necesarias
-//     transaction.sign(&[&payer, &reward_pool_keypair, &user], recent_blockhash);
+//         // Crear la transacción
+//         let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
+//         transaction.sign(&[&user, &payer], recent_blockhash);
 
-//     // Procesa la transacción en el entorno de prueba
-//     match banks_client.process_transaction(transaction).await {
-//         Ok(_) => println!("Transaction succeeded"),
-//         Err(err) => {
-//             eprintln!("Transaction failed: {:?}", err);
-//             assert!(false, "Transaction failed");
-//         }
+//         // Ejecutar la transacción
+//         banks_client.process_transaction(transaction).await.unwrap();
+
+//         // Verificar el estado de la cuenta `RewardPool`
+//         let reward_pool_account = banks_client
+//             .get_account(reward_pool_pubkey)
+//             .await
+//             .expect("get_account")
+//             .expect("reward_pool_account not found");
+//         let reward_pool_state = RewardPoolState::try_from_slice(&reward_pool_account.data).expect("failed to deserialize");
+
+//         // Validar el propietario
+//         assert_eq!(reward_pool_state.owner, user.pubkey());
 //     }
-
-//     // Comprueba si la cuenta `reward_pool` se creó correctamente
-//     let reward_pool_account: solana_sdk::account::Account = banks_client
-//         .get_account(reward_pool_keypair.pubkey())
-//         .await
-//         .expect("Account should exist")
-//         .expect("Account not found");
-
-//     // Valida que el `reward_pool` se creó con el propietario correcto
-//     assert_eq!(reward_pool_account.owner, program_id);
 // }
