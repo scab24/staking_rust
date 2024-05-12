@@ -263,8 +263,8 @@ pub struct DepositReward<'info> {
     #[account(
         init_if_needed,
         payer = user,
-        // seeds = [b"reward_info", campaign_id.to_le_bytes().as_ref()],
-        seeds=[b"reward_info".as_ref(), user.key().as_ref()],
+        seeds = [b"reward_info".as_ref(), campaign_id.to_le_bytes().as_ref()],
+        // seeds=[b"reward_info".as_ref(), user.key().as_ref()],
         bump,
         space = 8 + 32 + 32 + 32 + 1 // @audit => space change. Assuming space for u64 (amount), 2 * Pubkey (token_address, owner_address), plus discriminator
     )]

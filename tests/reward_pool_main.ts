@@ -242,7 +242,7 @@ describe("reward_pool_main", () => {
       const [rewardInfoPda, _] = await anchor.web3.PublicKey.findProgramAddress(
         [
           anchor.utils.bytes.utf8.encode("reward_info"),
-          payer.publicKey.toBuffer(),
+          new anchor.BN(0).toArrayLike(Buffer, "le", 8),
         ],
         program.programId
       );
